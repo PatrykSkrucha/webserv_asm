@@ -2,8 +2,9 @@
 #
 #	r12	-	socket server
 #	r13 -	client fd
-#	r14	-	ptr to file for POST req
+#	r14	-	ptr to file for POST req / read size GET
 #	rbx	-	read length
+#	r15	-	ptr to the beginnig of body
 # ------------------------
 
 .intel_syntax noprefix
@@ -80,13 +81,12 @@ _start:
 	cmp DWORD PTR [rsp],0x20544547 # 'GET '
 	je .is_get
 .is_post:
-	lea rdi, [rsp + 4]
+	lea rdi, [rsp + 5]
 	mov rsi, rdi
 .find_space_post:
 	inc rsi
 	cmp BYTE PTR [rsi], ' '
 	jne .find_space_post
-	
 	# -------------------
 	# terminate a string with path to file with \0
 	mov BYTE PTR [rsi], 0
@@ -98,29 +98,42 @@ _start:
 	lea rdi, [rsp]
 	mov rsi, rdi
 .find_body:
-	cmp DWORD PTR [rsi], 0x0a0d0a0d
+	cmp DWORD PTR [rsi], 0x0a0d0a0d # \r\n\r\n
 	je .calc_len
 	inc rsi
 	inc rcx
 	jmp .find_body
 .calc_len:
+	add rcx, 4 # skip \r\n\r\n
 	add rsi, 4
-	sub rbx, rsi # now rbx holds actuall content length
+	mov r15, rsi
+	sub rbx, rcx # now rbx holds actuall content length
 	# -------------------
 	# open file
-
 	mov rax, 2
 	mov rdi, r14
 	mov rsi, 0x01 | 0x40 #	O_WRONLY | O_CREAT
 	mov rdx, 0777 # chmod for O_CREAT flag 
 	syscall
-
+	mov rdi, rax # keep fd
 	# -------------------
 	# write body to a file
 	mov rax, 1
-	mov rdi, 
+	mov rsi, r15
+	mov rdx, rbx
 	syscall
-	
+	# -------------------
+	# close file
+	mov rax, 3
+	syscall
+	# -------------------
+	# send header
+	mov rdi, r13
+	lea rsi, [rip + response_ok]
+	mov rdx, response_ok_end - response_ok
+	mov rax, 1
+	syscall
+	jmp .close_client
 .is_get:
 	# -------------------
 	# get path to file
@@ -170,6 +183,7 @@ _start:
 	syscall
 	# -------------------
 	# close client
+.close_client:
 	mov rax, 3
 	mov rdi, r13
 	syscall
@@ -180,8 +194,6 @@ _start:
 	add rsp, 1024
 	add rsp, 16
 	syscall
-
 response_ok:
 .ascii "HTTP/1.0 200 OK\r\n\r\n"
 response_ok_end:
-
