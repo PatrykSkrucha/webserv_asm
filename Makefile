@@ -1,29 +1,22 @@
-NAME    = libasm.a
-SRCS    = itoa.s
+NAME    = server
+SRCS    = server.s
 OBJS    = $(SRCS:.s=.o)
-NASM    = as
-NFLAGS  = 
-CC      = cc
+AS      = as
+LD      = ld
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
-	ar rcs $(NAME) $(OBJS)
+	$(LD) $(OBJS) -o $(NAME)
 
 %.o: %.s
-	$(NASM) $(NFLAGS) $< -o $@
-
-main.o: main.c
-	$(CC) -c $< -o $@
-
-test: main.o $(NAME)
-	$(CC) $^ -o $@
+	$(AS) $< -o $@
 
 clean:
-	rm -f $(OBJS) main.o
+	rm -f $(OBJS)
 
 fclean: clean
-	rm -f $(NAME) test
+	rm -f $(NAME)
 
 re: fclean all
 
